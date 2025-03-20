@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 
-def test_transcript_api(video_id, language=None, force_extract=False, info=False, server_url="http://localhost:5000"):
+def test_transcript_api(video_id, language=None, force_extract=False, info=False, server_url="http://localhost:5002"):
     """Test the transcript API with the given parameters"""
     
     # Build request URL based on action
@@ -54,7 +54,7 @@ def test_transcript_api(video_id, language=None, force_extract=False, info=False
     
     return 0
 
-def check_server_health(server_url="http://localhost:5000"):
+def check_server_health(server_url="http://localhost:5002"):
     """Check if the server is running and healthy"""
     try:
         url = f"{server_url}/health"
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     parser.add_argument("--force-extract", "-f", action="store_true", help="Force manual extraction")
     parser.add_argument("--info", "-i", action="store_true", help="Get video info instead of transcript")
     parser.add_argument("--health", action="store_true", help="Check server health")
-    parser.add_argument("--server", "-s", default="http://localhost:5000", help="Server URL")
+    parser.add_argument("--server", "-s", default="http://localhost:5002", help="Server URL")
     
     args = parser.parse_args()
     

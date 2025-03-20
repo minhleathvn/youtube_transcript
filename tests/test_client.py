@@ -6,7 +6,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def test_transcript(video_id, server_url="http://localhost:5001"):
+def test_transcript(video_id, server_url="http://localhost:5002"):
     """Test the transcript endpoint with the given video ID"""
     logger.info(f"Testing transcript for video ID: {video_id}")
     

@@ -24,13 +24,13 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV FLASK_APP=app.flask_server
 ENV FLASK_DEBUG=0
-ENV PORT=5000
+ENV PORT=5001
 
-EXPOSE 5000
+EXPOSE 5001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -f http://localhost:5000/health || exit 1
+  CMD curl -f http://localhost:5001/health || exit 1
 
 # Create a non-root user to run the application
 RUN adduser --disabled-password --gecos "" appuser
@@ -43,5 +43,5 @@ RUN chmod +x /app/entrypoint.sh
 
 # By default, run the Flask HTTP API server
 # To run MCP server, set SERVER_TYPE=mcp when running the container
-# docker run -p 5000:5000 -e SERVER_TYPE=mcp youtube-transcript
+# docker run -p 5001:5001 -e SERVER_TYPE=mcp youtube-transcript
 CMD ["/app/entrypoint.sh"]

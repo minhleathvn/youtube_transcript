@@ -57,7 +57,7 @@ Run the HTTP API server with:
 python server.py
 ```
 
-The server will be available at http://localhost:5000.
+The server will be available at http://localhost:5001.
 
 ### MCP Server
 
@@ -88,10 +88,10 @@ To run the server using Docker (recommended for production):
 docker build -t youtube-transcript .
 
 # Run the HTTP API server (default)
-docker run -p 5000:5000 youtube-transcript
+docker run -p 5001:5001 youtube-transcript
 
 # OR run the MCP server
-docker run -p 5000:5000 -e SERVER_TYPE=mcp youtube-transcript
+docker run -p 5001:5001 -e SERVER_TYPE=mcp youtube-transcript
 ```
 
 ## HTTP API Usage
@@ -99,7 +99,7 @@ docker run -p 5000:5000 -e SERVER_TYPE=mcp youtube-transcript
 Make a GET request to the `/transcript` endpoint with the following parameters:
 
 ```
-GET http://localhost:5000/transcript?video_id=VIDEO_ID&language=LANGUAGE&force_extract=false
+GET http://localhost:5001/transcript?video_id=VIDEO_ID&language=LANGUAGE&force_extract=false
 ```
 
 ### Parameters
@@ -126,7 +126,7 @@ The `source` field indicates whether the transcript was obtained from the YouTub
 Check if the HTTP server is running:
 
 ```
-GET http://localhost:5000/health
+GET http://localhost:5001/health
 ```
 
 ## MCP Server Features
