@@ -10,4 +10,4 @@ if __name__ == '__main__':
     logger = logging.getLogger(__name__)
     
     logger.info("Starting YouTube Transcript HTTP API Server...")
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5000)
