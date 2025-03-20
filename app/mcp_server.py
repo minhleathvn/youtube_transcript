@@ -74,7 +74,7 @@ Description: {info['description']}
 """
 
 @mcp.resource("youtube://{video_id}/transcript")
-async def get_transcript_resource(video_id: str, ctx: Context) -> str:
+async def get_transcript_resource(video_id: str) -> str:
     """Get transcript for a YouTube video as a resource"""
     language = None
     transcript_text = None
@@ -89,10 +89,10 @@ async def get_transcript_resource(video_id: str, ctx: Context) -> str:
                 transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
                 formatter = TextFormatter()
                 transcript_text = formatter.format_transcript(transcript_list)
-                ctx.info(f"Retrieved {lang} transcript from YouTube API")
+                logger.info(f"Retrieved {lang} transcript from YouTube API")
                 return transcript_text
             except Exception as lang_e:
-                ctx.info(f"No {lang} transcript available: {str(lang_e)}")
+                logger.info(f"No {lang} transcript available: {str(lang_e)}")
                 continue
         
         # If no specific language found, try with auto-generated
@@ -100,13 +100,13 @@ async def get_transcript_resource(video_id: str, ctx: Context) -> str:
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
             formatter = TextFormatter()
             transcript_text = formatter.format_transcript(transcript_list)
-            ctx.info("Retrieved transcript from YouTube API (auto language)")
+            logger.info("Retrieved transcript from YouTube API (auto language)")
             return transcript_text
         except Exception as e:
-            ctx.warning(f"Failed to get transcript from YouTube API: {str(e)}")
+            logger.warning(f"Failed to get transcript from YouTube API: {str(e)}")
             
     except Exception as e:
-        ctx.warning(f"Failed to get transcript from YouTube API: {str(e)}")
+        logger.warning(f"Failed to get transcript from YouTube API: {str(e)}")
     
     # If we reach here, no transcript was found
     return "No transcript available for this video. Use the extract_transcript tool to generate one."
@@ -216,7 +216,7 @@ async def extract_transcript(video_id: str, language: Optional[str] = None, ctx:
         ctx.info("Downloading audio...")
         await ctx.report_progress(0, 3)  # 3 steps: download, transcribe, cleanup
     
-    audio_path, dl_error = await download_audio(video_id)
+    audio_path, dl_error = download_audio(video_id)
     if dl_error:
         return f"Failed to download audio: {dl_error}"
     
@@ -227,7 +227,7 @@ async def extract_transcript(video_id: str, language: Optional[str] = None, ctx:
                 ctx.info("Transcribing audio... (this may take a while)")
                 await ctx.report_progress(1, 3)
             
-            transcript_text, transcribe_error = await transcribe_audio(audio_path, whisper_lang)
+            transcript_text, transcribe_error = transcribe_audio(audio_path, whisper_lang)
             
             # Try to detect language if not specified
             if transcript_text and not whisper_lang:

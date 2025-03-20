@@ -37,9 +37,11 @@ RUN adduser --disabled-password --gecos "" appuser
 RUN chown -R appuser:appuser /app /tmp/youtube_transcripts
 USER appuser
 
-# You can use either the HTTP API server or the MCP server
-# Default to HTTP API server
-CMD ["python", "server.py"]
+# Set default server based on SERVER_TYPE environment variable
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-# To use MCP server, override the CMD:
-# docker run -p 5000:5000 youtube-transcript python mcp_server.py
+# By default, run the Flask HTTP API server
+# To run MCP server, set SERVER_TYPE=mcp when running the container
+# docker run -p 5000:5000 -e SERVER_TYPE=mcp youtube-transcript
+CMD ["/app/entrypoint.sh"]

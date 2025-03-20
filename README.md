@@ -80,11 +80,17 @@ mcp install mcp_server.py
 
 ### Docker
 
-To run the HTTP API server using Docker (recommended for production):
+To run the server using Docker (recommended for production):
 
 ```bash
+# Build the Docker image
 docker build -t youtube-transcript .
+
+# Run the HTTP API server (default)
 docker run -p 5000:5000 youtube-transcript
+
+# OR run the MCP server
+docker run -p 5000:5000 -e SERVER_TYPE=mcp youtube-transcript
 ```
 
 ## HTTP API Usage
