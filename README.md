@@ -15,14 +15,14 @@ A server that provides YouTube video transcriptions with special focus on Vietna
 ## Setup
 
 ### Prerequisites
-- Python 3.9+
+- Python 3.11+
 - FFmpeg (required for audio processing)
 - Docker (optional)
 
 ### Installation
 
 1. Clone the repository:
-```
+```bash
 git clone https://github.com/minhleathvn/youtube_transcript.git
 cd youtube_transcript
 ```
@@ -32,38 +32,49 @@ cd youtube_transcript
    - On Ubuntu/Debian: `sudo apt-get install ffmpeg`
    - On Windows: Download from [FFmpeg website](https://ffmpeg.org/download.html)
 
-3. Install Python dependencies:
-```
+3. Create a virtual environment and install Python dependencies:
+```bash
+python3.11 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
 ## Running the Server
 
+Make sure to activate your virtual environment before running any of the servers:
+
+```bash
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
 ### HTTP API Server
 
 Run the HTTP API server with:
 
-```
+```bash
 python server.py
 ```
+
+The server will be available at http://localhost:5000.
 
 ### MCP Server
 
 Run the MCP server with:
 
-```
+```bash
 python mcp_server.py
 ```
 
 For development and testing with the MCP Inspector:
 
-```
+```bash
 mcp dev mcp_server.py
 ```
 
 To install the MCP server in Claude Desktop:
 
-```
+```bash
 mcp install mcp_server.py
 ```
 
@@ -71,7 +82,7 @@ mcp install mcp_server.py
 
 To run the HTTP API server using Docker (recommended for production):
 
-```
+```bash
 docker build -t youtube-transcript .
 docker run -p 5000:5000 youtube-transcript
 ```
@@ -160,3 +171,30 @@ If the transcript can't be retrieved:
   "error": "Failed to get transcript: [error message]"
 }
 ```
+
+## Development
+
+### Project Structure
+
+- `app/` - Core application code
+  - `flask_server.py` - HTTP API server implementation
+  - `mcp_server.py` - MCP server implementation  
+  - `utils.py` - Shared utility functions
+- `server.py` - Entry point for HTTP API server
+- `mcp_server.py` - Entry point for MCP server
+- `test_server.py` - Tests for the server
+- `requirements.txt` - Python dependencies
+- `Dockerfile` - Docker configuration for containerized deployment
+
+### Contributing
+
+1. Fork the repository
+2. Create a virtual environment with Python 3.11
+3. Install dependencies 
+4. Make your changes
+5. Run tests to ensure functionality
+6. Submit a pull request
+
+### License
+
+This project is open source and available under the MIT License.
