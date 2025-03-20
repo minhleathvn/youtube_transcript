@@ -45,7 +45,7 @@ def clean_temp_files():
             except Exception as e:
                 logger.error(f"Error removing temporary file {file_path}: {str(e)}")
 
-async def download_audio(video_id: str) -> Tuple[Optional[str], Optional[str]]:
+def download_audio(video_id: str) -> Tuple[Optional[str], Optional[str]]:
     """Download audio from YouTube video"""
     try:
         yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
@@ -63,7 +63,7 @@ async def download_audio(video_id: str) -> Tuple[Optional[str], Optional[str]]:
         logger.error(f"Error downloading audio: {str(e)}")
         return None, str(e)
 
-async def transcribe_audio(audio_path: str, language: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+def transcribe_audio(audio_path: str, language: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
     """Transcribe audio using Whisper"""
     try:
         model = get_whisper_model()

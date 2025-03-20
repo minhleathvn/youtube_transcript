@@ -22,6 +22,9 @@ RUN mkdir -p /tmp/youtube_transcripts
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV FLASK_APP=app.flask_server
+ENV FLASK_DEBUG=0
+ENV PORT=5000
 
 EXPOSE 5000
 
