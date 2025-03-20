@@ -8,7 +8,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
 from langdetect import detect
 
-from app.utils import (
+from apps.utils import (
     clean_temp_files, download_audio, transcribe_audio, 
     get_language_preference, get_video_info
 )
@@ -49,6 +49,13 @@ def get_transcript():
                     transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
                     formatter = TextFormatter()
                     transcript_text = formatter.format_transcript(transcript_list)
+                    
+                    # Check if transcript is too short or contains placeholder text
+                    if len(transcript_text) < 50 or "caption is updating" in transcript_text.lower():
+                        logger.info(f"Retrieved {lang} transcript is too short or contains placeholder text, treating as no transcript")
+                        transcript_text = None
+                        continue
+                        
                     transcript_language = lang
                     logger.info(f"Retrieved {lang} transcript from YouTube API")
                     break
@@ -63,14 +70,17 @@ def get_transcript():
                     formatter = TextFormatter()
                     transcript_text = formatter.format_transcript(transcript_list)
                     
+                    # Check if transcript is too short or contains placeholder text
+                    if transcript_text and (len(transcript_text) < 50 or "caption is updating" in transcript_text.lower()):
+                        logger.info("Retrieved auto transcript is too short or contains placeholder text, treating as no transcript")
+                        transcript_text = None
                     # Try to detect language
-                    if transcript_text:
+                    elif transcript_text:
                         try:
                             transcript_language = detect(transcript_text[:100])
                         except:
                             transcript_language = "unknown"
-                    
-                    logger.info("Retrieved transcript from YouTube API (auto language)")
+                        logger.info("Retrieved transcript from YouTube API (auto language)")
                 except Exception as e:
                     error_msg = str(e)
                     logger.warning(f"Failed to get transcript from YouTube API: {error_msg}")
@@ -79,16 +89,21 @@ def get_transcript():
             logger.warning(f"Failed to get transcript from YouTube API: {error_msg}")
     
     # If transcript not found or forcing extraction, try manual extraction
-    if (not transcript_text or force_extract) and error_msg:
+    if not transcript_text or force_extract:
         logger.info("Attempting manual audio extraction and transcription")
         transcript_source = "whisper_extraction"
         
         # Download audio - changed from async to sync
         audio_path, dl_error = download_audio(video_id)
         if dl_error:
+            logger.error(f"Audio download error: {dl_error}")
+            error_detail = f"{error_msg}. Audio download error: {dl_error}" if error_msg else f"Audio download error: {dl_error}"
             return jsonify({
-                "error": f"Failed to get transcript: {error_msg}. Audio download error: {dl_error}"
-            }), 500
+                "error": f"Failed to get transcript: {error_detail}",
+                "video_id": video_id,
+                "transcript": "No transcript available for this video.",
+                "status": "error"
+            }), 404  # Use 404 to indicate the resource (transcript) couldn't be found
         
         # Transcribe with Whisper
         if audio_path:
@@ -137,9 +152,13 @@ def get_transcript():
                 }), 500
     
     if not transcript_text:
+        logger.error(f"No transcript available for video ID: {video_id}. Error: {error_msg or 'Unknown error'}")
         return jsonify({
-            "error": f"Failed to get transcript: {error_msg or 'Unknown error'}"
-        }), 500
+            "error": f"Failed to get transcript: {error_msg or 'Unknown error'}",
+            "video_id": video_id,
+            "transcript": "No transcript available for this video.",
+            "status": "error"
+        }), 404  # Use 404 to indicate the resource (transcript) couldn't be found
     
     return jsonify({
         "video_id": video_id,

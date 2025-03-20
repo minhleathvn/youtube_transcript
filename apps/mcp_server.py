@@ -13,7 +13,7 @@ from youtube_transcript_api.formatters import TextFormatter
 from pytube import Search
 from langdetect import detect
 
-from app.utils import (
+from apps.utils import (
     clean_temp_files, download_audio, transcribe_audio, 
     get_language_preference, get_video_info, extract_video_id
 )
@@ -89,6 +89,12 @@ async def get_transcript_resource(video_id: str) -> str:
                 transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
                 formatter = TextFormatter()
                 transcript_text = formatter.format_transcript(transcript_list)
+                
+                # Check if transcript is too short or contains placeholder text
+                if len(transcript_text) < 50 or "caption is updating" in transcript_text.lower():
+                    logger.info(f"Retrieved {lang} transcript is too short or contains placeholder text, treating as no transcript")
+                    continue
+                    
                 logger.info(f"Retrieved {lang} transcript from YouTube API")
                 return transcript_text
             except Exception as lang_e:
@@ -100,8 +106,14 @@ async def get_transcript_resource(video_id: str) -> str:
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
             formatter = TextFormatter()
             transcript_text = formatter.format_transcript(transcript_list)
-            logger.info("Retrieved transcript from YouTube API (auto language)")
-            return transcript_text
+            
+            # Check if transcript is too short or contains placeholder text
+            if len(transcript_text) < 50 or "caption is updating" in transcript_text.lower():
+                logger.info("Retrieved auto transcript is too short or contains placeholder text, treating as no transcript")
+                # Don't return anything, continue with the next option
+            else:    
+                logger.info("Retrieved transcript from YouTube API (auto language)")
+                return transcript_text
         except Exception as e:
             logger.warning(f"Failed to get transcript from YouTube API: {str(e)}")
             
@@ -142,6 +154,14 @@ async def get_transcript(video_id: str, language: Optional[str] = None, ctx: Con
                 transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
                 formatter = TextFormatter()
                 transcript_text = formatter.format_transcript(transcript_list)
+                
+                # Check if transcript is too short or contains placeholder text
+                if len(transcript_text) < 50 or "caption is updating" in transcript_text.lower():
+                    if ctx:
+                        ctx.info(f"Retrieved {lang} transcript is too short or contains placeholder text, treating as no transcript")
+                    transcript_text = None
+                    continue
+                
                 transcript_language = lang
                 if ctx:
                     ctx.info(f"Retrieved {lang} transcript from YouTube API")
@@ -158,15 +178,20 @@ async def get_transcript(video_id: str, language: Optional[str] = None, ctx: Con
                 formatter = TextFormatter()
                 transcript_text = formatter.format_transcript(transcript_list)
                 
+                # Check if transcript is too short or contains placeholder text
+                if transcript_text and (len(transcript_text) < 50 or "caption is updating" in transcript_text.lower()):
+                    if ctx:
+                        ctx.info("Retrieved auto transcript is too short or contains placeholder text, treating as no transcript")
+                    transcript_text = None
                 # Try to detect language
-                if transcript_text:
+                elif transcript_text:
                     try:
                         transcript_language = detect(transcript_text[:100])
                     except:
                         transcript_language = "unknown"
-                
-                if ctx:
-                    ctx.info("Retrieved transcript from YouTube API (auto language)")
+                    
+                    if ctx:
+                        ctx.info("Retrieved transcript from YouTube API (auto language)")
             except Exception as e:
                 error_msg = str(e)
                 if ctx:
@@ -218,7 +243,8 @@ async def extract_transcript(video_id: str, language: Optional[str] = None, ctx:
     
     audio_path, dl_error = download_audio(video_id)
     if dl_error:
-        return f"Failed to download audio: {dl_error}"
+        logger.error(f"Audio download error for video ID {video_id}: {dl_error}")
+        return f"No transcript available for this video. The system could not download the audio: {dl_error}"
     
     # Transcribe with Whisper
     if audio_path:

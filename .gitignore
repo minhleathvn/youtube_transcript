@@ -103,3 +103,7 @@ venv.bak/
 # OS specific
 .DS_Store
 Thumbs.db
+
+# IDE specific
+.idea/
+.vscode/

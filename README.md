@@ -7,6 +7,7 @@ A server that provides YouTube video transcriptions with special focus on Vietna
 - Fetches transcripts directly from YouTube API when available
 - Prioritizes Vietnamese and English transcripts
 - Fallback to manual audio extraction and transcription when no transcript is available
+- Detects and handles placeholder transcripts (e.g., "caption is updating...") as non-transcripts
 - Uses OpenAI's Whisper model for high-quality speech recognition
 - Supports language specification and detection
 - Automatic cleanup of temporary files
@@ -156,11 +157,19 @@ The service prioritizes transcripts in the following order:
 3. Any available language (auto-detected)
 4. Manual extraction and transcription using Whisper
 
-## Performance Considerations
+## Performance and Limitations
 
 - The first request that requires Whisper might be slow as the model needs to be loaded
 - Subsequent requests will be faster as the model remains in memory
 - Temporary audio files are automatically cleaned up after processing and files older than 1 hour are removed
+
+### Known Limitations
+
+- Age-restricted, private, or otherwise restricted videos may not be accessible for audio extraction
+- Some YouTube videos block transcript access or provide only placeholder transcripts
+- The service depends on both YouTube's API and the pytube library, either of which may change and affect functionality
+- YouTube imposes rate limits on requests, which may affect intensive usage
+- The speech recognition quality depends on the audio quality and presence of background noise
 
 ## Error Handling
 
@@ -174,9 +183,19 @@ If the video ID is missing or invalid:
 If the transcript can't be retrieved:
 ```json
 {
-  "error": "Failed to get transcript: [error message]"
+  "error": "Failed to get transcript: [error message]",
+  "video_id": "VIDEO_ID",
+  "transcript": "No transcript available for this video.",
+  "status": "error"
 }
 ```
+
+The server handles several error scenarios:
+- When only placeholder transcripts are available (e.g., "caption is updating...")
+- When the video is age-restricted, private, or otherwise inaccessible
+- When YouTube API doesn't provide any transcript
+- When audio extraction fails due to download limitations or restrictions
+- When the Whisper model can't transcribe the audio effectively
 
 ## Development
 

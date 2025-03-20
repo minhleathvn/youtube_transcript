@@ -10,6 +10,7 @@ from typing import Optional, Tuple, List
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
 from pytube import YouTube
+# Use the correct whisper import for OpenAI's speech recognition model
 import whisper
 from langdetect import detect
 
@@ -48,17 +49,48 @@ def clean_temp_files():
 def download_audio(video_id: str) -> Tuple[Optional[str], Optional[str]]:
     """Download audio from YouTube video"""
     try:
-        yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
-        audio_stream = yt.streams.filter(only_audio=True).first()
+        # Try to download using pytube
+        url = f"https://www.youtube.com/watch?v={video_id}"
+        logger.info(f"Attempting to download audio from: {url}")
         
-        if not audio_stream:
-            return None, "No audio stream available"
+        # Make multiple attempts with different configurations
+        for attempt in range(3):
+            try:
+                logger.info(f"Download attempt {attempt+1}...")
+                if attempt == 0:
+                    yt = YouTube(url)
+                elif attempt == 1:
+                    # Try with different options
+                    yt = YouTube(url, use_oauth=False, allow_oauth_cache=False)
+                else:
+                    # Try another approach
+                    yt = YouTube(url, use_oauth=False, allow_oauth_cache=False)
+                
+                # Try to get streams
+                audio_stream = yt.streams.filter(only_audio=True).first()
+                if not audio_stream:
+                    logger.warning("No audio stream available for this video")
+                    continue
+                
+                # Download to temp directory
+                output_path = os.path.join(TEMP_DIR, f"{video_id}.mp4")
+                audio_stream.download(output_path=TEMP_DIR, filename=f"{video_id}.mp4")
+                
+                # Check if file was actually downloaded
+                if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                    logger.info(f"Successfully downloaded audio to: {output_path}")
+                    return output_path, None
+                else:
+                    logger.warning(f"Download appeared to succeed but file is missing or empty: {output_path}")
+                    
+            except Exception as e:
+                logger.warning(f"Download attempt {attempt+1} failed: {str(e)}")
         
-        # Download to temp directory
-        output_path = os.path.join(TEMP_DIR, f"{video_id}.mp4")
-        audio_stream.download(output_path=TEMP_DIR, filename=f"{video_id}.mp4")
-        
-        return output_path, None
+        # If all attempts failed, return error
+        error_msg = "Failed to download audio after multiple attempts. The video may be restricted, private, or age-limited."
+        logger.error(error_msg)
+        return None, error_msg
+            
     except Exception as e:
         logger.error(f"Error downloading audio: {str(e)}")
         return None, str(e)

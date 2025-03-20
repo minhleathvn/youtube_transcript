@@ -2,7 +2,7 @@
 Main entry point for YouTube Transcript MCP server
 """
 import logging
-from app.mcp_server import mcp
+from apps.mcp_server import mcp
 
 if __name__ == "__main__":
     # Setup logging
