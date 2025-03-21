@@ -5,7 +5,6 @@ import logging
 from flask import Flask, request, jsonify
 
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.formatters import TextFormatter
 from langdetect import detect
 
 from apps.utils import (
@@ -47,8 +46,7 @@ def get_transcript():
             for lang in lang_preference:
                 try:
                     transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
-                    formatter = TextFormatter()
-                    transcript_text = formatter.format_transcript(transcript_list)
+                    transcript_text = "\n".join(line['text'] for line in transcript_list)
                     
                     # Check if transcript is too short or contains placeholder text
                     if len(transcript_text) < 50 or "caption is updating" in transcript_text.lower():
@@ -67,8 +65,7 @@ def get_transcript():
             if not transcript_text:
                 try:
                     transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-                    formatter = TextFormatter()
-                    transcript_text = formatter.format_transcript(transcript_list)
+                    transcript_text = "\n".join(line['text'] for line in transcript_list)
                     
                     # Check if transcript is too short or contains placeholder text
                     if transcript_text and (len(transcript_text) < 50 or "caption is updating" in transcript_text.lower()):

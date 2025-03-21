@@ -1,6 +1,5 @@
 import logging
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.formatters import TextFormatter
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -15,8 +14,7 @@ def test_transcript_api(video_id):
         logger.info("Attempting to fetch transcript in any language...")
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
         
-        formatter = TextFormatter()
-        transcript_text = formatter.format_transcript(transcript_list)
+        transcript_text = "\n".join(line['text'] for line in transcript_list)
         
         logger.info(f"Transcript length: {len(transcript_text)}")
         logger.info(f"Transcript snippet: {transcript_text[:100]}...")

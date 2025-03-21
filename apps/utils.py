@@ -8,7 +8,6 @@ import time
 from typing import Optional, Tuple, List
 
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.formatters import TextFormatter
 from pytube import YouTube
 # Use the correct whisper import for OpenAI's speech recognition model
 import whisper
