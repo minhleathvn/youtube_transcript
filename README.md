@@ -1,225 +1,76 @@
-# YouTube Transcript API Server
+# YouTube Transcript API
 
-A server that provides YouTube video transcriptions with special focus on Vietnamese and English languages. Supports both HTTP API and MCP (Model Context Protocol) for integrating with LLM applications.
+A Python service that provides APIs to fetch and transcribe YouTube video content. It supports both REST API (Flask) and MCP server implementations.
 
 ## Features
 
-- Fetches transcripts directly from YouTube API when available
-- Prioritizes Vietnamese and English transcripts
-- Fallback to manual audio extraction and transcription when no transcript is available
-- Detects and handles placeholder transcripts (e.g., "caption is updating...") as non-transcripts
-- Uses OpenAI's Whisper model for high-quality speech recognition
-- Supports language specification and detection
-- Automatic cleanup of temporary files
-- MCP support for integration with Claude Desktop and other MCP clients
+- Fetch YouTube video transcripts in multiple languages (English and Vietnamese)
+- Auto-detect and use available transcripts
+- Fallback to audio transcription using Whisper when transcripts are unavailable
+- Support for both REST API and MCP server interfaces
+- Automatic language detection
+- Temporary file cleanup
+- Progress reporting for long-running operations
 
-## Setup
+## Installation
 
-### Prerequisites
-- Python 3.11+
-- FFmpeg (required for audio processing)
-- Docker (optional)
-
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/minhleathvn/youtube_transcript.git
-cd youtube_transcript
-```
-
-2. Install FFmpeg:
-   - On macOS: `brew install ffmpeg`
-   - On Ubuntu/Debian: `sudo apt-get install ffmpeg`
-   - On Windows: Download from [FFmpeg website](https://ffmpeg.org/download.html)
-
-3. Create a virtual environment and install Python dependencies:
-```bash
-python3.11 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## Running the Server
+## Usage
 
-Make sure to activate your virtual environment before running any of the servers:
+### REST API (Flask)
 
+Start the Flask server:
 ```bash
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python apps/flask_server.py
 ```
 
-### HTTP API Server
-
-Run the HTTP API server with:
-
-```bash
-python server.py
-```
-
-The server will be available at http://localhost:5001.
+Available endpoints:
+- `GET /transcript?video_id=<video_id>&language=<lang>` - Get video transcript
+- `GET /video/info?video_id=<video_id>` - Get video information
+- `GET /health` - Health check endpoint
 
 ### MCP Server
 
-Run the MCP server with:
-
+Start the MCP server:
 ```bash
-python mcp_server.py
+python apps/mcp_server.py
 ```
 
-For development and testing with the MCP Inspector:
-
-```bash
-mcp dev mcp_server.py
-```
-
-To install the MCP server in Claude Desktop:
-
-```bash
-mcp install mcp_server.py
-```
-
-### Docker
-
-To run the server using Docker (recommended for production):
-
-```bash
-# Build the Docker image
-docker build -t youtube-transcript .
-
-# Run the HTTP API server (default)
-docker run -p 5001:5001 youtube-transcript
-
-# OR run the MCP server
-docker run -p 5001:5001 -e SERVER_TYPE=mcp youtube-transcript
-```
-
-## HTTP API Usage
-
-Make a GET request to the `/transcript` endpoint with the following parameters:
-
-```
-GET http://localhost:5001/transcript?video_id=VIDEO_ID&language=LANGUAGE&force_extract=false
-```
-
-### Parameters
-
-- `video_id` (required): The YouTube video ID (e.g., `dQw4w9WgXcQ` from the URL `https://www.youtube.com/watch?v=dQw4w9WgXcQ`)
-- `language` (optional): Preferred language for the transcript ('en' or 'vi')
-- `force_extract` (optional): Set to 'true' to force manual extraction even if YouTube transcripts exist
-
-### Example Response
-
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "transcript": "We're no strangers to love You know the rules and so do I...",
-  "language": "en",
-  "source": "youtube_api"
-}
-```
-
-The `source` field indicates whether the transcript was obtained from the YouTube API (`youtube_api`) or extracted manually using Whisper (`whisper_extraction`).
-
-### Health Check
-
-Check if the HTTP server is running:
-
-```
-GET http://localhost:5001/health
-```
-
-## MCP Server Features
-
-The MCP server provides the following capabilities that can be accessed through Claude Desktop or other MCP clients:
-
-### Resources
-
-- `youtube://{video_id}/info` - Get basic information about a YouTube video
-- `youtube://{video_id}/transcript` - Get the transcript for a YouTube video
-
-### Tools
-
-- `get_transcript(video_id, language)` - Retrieve a transcript from YouTube API
-- `extract_transcript(video_id, language)` - Download and transcribe the audio when no API transcript is available
-- `search_youtube_video(search_query)` - Search for YouTube videos and return top results
-
-### Prompts
-
-- `transcript_youtube_video(video_url_or_id)` - Get and summarize a transcript from a YouTube video
-- `vietnamese_youtube_summary(video_url_or_id)` - Get a Vietnamese summary of a YouTube video
+Available tools:
+- `get_transcript(video_id, language)` - Get video transcript
+- `extract_transcript(video_id, language)` - Extract transcript from audio
+- `search_youtube_video(query)` - Search for YouTube videos
 
 ## Language Support
 
-The service prioritizes transcripts in the following order:
-1. The user-requested language (if specified)
-2. English or Vietnamese (depending on the request)
-3. Any available language (auto-detected)
-4. Manual extraction and transcription using Whisper
+- English (en)
+- Vietnamese (vi)
+- Auto-detection for other languages
 
-## Performance and Limitations
+## Dependencies
 
-- The first request that requires Whisper might be slow as the model needs to be loaded
-- Subsequent requests will be faster as the model remains in memory
-- Temporary audio files are automatically cleaned up after processing and files older than 1 hour are removed
-
-### Known Limitations
-
-- Age-restricted, private, or otherwise restricted videos may not be accessible for audio extraction
-- Some YouTube videos block transcript access or provide only placeholder transcripts
-- The service depends on both YouTube's API and the pytube library, either of which may change and affect functionality
-- YouTube imposes rate limits on requests, which may affect intensive usage
-- The speech recognition quality depends on the audio quality and presence of background noise
-
-## Error Handling
-
-If the video ID is missing or invalid:
-```json
-{
-  "error": "Missing video_id parameter"
-}
-```
-
-If the transcript can't be retrieved:
-```json
-{
-  "error": "Failed to get transcript: [error message]",
-  "video_id": "VIDEO_ID",
-  "transcript": "No transcript available for this video.",
-  "status": "error"
-}
-```
-
-The server handles several error scenarios:
-- When only placeholder transcripts are available (e.g., "caption is updating...")
-- When the video is age-restricted, private, or otherwise inaccessible
-- When YouTube API doesn't provide any transcript
-- When audio extraction fails due to download limitations or restrictions
-- When the Whisper model can't transcribe the audio effectively
+- youtube-transcript-api
+- pytube
+- whisper
+- torch
+- langdetect
+- flask (for REST API)
+- mcp (for MCP server)
 
 ## Development
 
-### Project Structure
+The project structure:
+```
+apps/
+├── __init__.py
+├── flask_server.py  # REST API implementation
+├── mcp_server.py    # MCP server implementation
+└── utils.py         # Shared utilities
+```
 
-- `app/` - Core application code
-  - `flask_server.py` - HTTP API server implementation
-  - `mcp_server.py` - MCP server implementation  
-  - `utils.py` - Shared utility functions
-- `server.py` - Entry point for HTTP API server
-- `mcp_server.py` - Entry point for MCP server
-- `test_server.py` - Tests for the server
-- `requirements.txt` - Python dependencies
-- `Dockerfile` - Docker configuration for containerized deployment
+## License
 
-### Contributing
-
-1. Fork the repository
-2. Create a virtual environment with Python 3.11
-3. Install dependencies 
-4. Make your changes
-5. Run tests to ensure functionality
-6. Submit a pull request
-
-### License
-
-This project is open source and available under the MIT License.
+MIT License
