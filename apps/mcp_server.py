@@ -14,7 +14,7 @@ from langdetect import detect
 
 from apps.utils import (
     clean_temp_files, download_audio, transcribe_audio, 
-    get_language_preference, get_video_info, extract_video_id
+    get_language_preference, get_video_info, extract_video_id, get_youtube_transcript
 )
 
 # Setup logging
@@ -77,99 +77,22 @@ async def get_transcript_resource(video_id: str) -> str:
     """Get transcript for a YouTube video as a resource"""
     logger.info(f"Resource request for transcript of video {video_id}")
     
-    language = None
-    transcript_text = None
-    transcript_language = None
+    # Remove await since get_youtube_transcript is now sync
+    transcript_text, transcript_language, _, error_msg = get_youtube_transcript(video_id)
     
-    try:
-        # Try to get transcript in various languages
-        lang_preference = get_language_preference(language)
-        
-        # Track attempts in case all fail
-        attempt_results = []
-        
-        for lang in lang_preference:
-            try:
-                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
-                transcript_text = "\n".join(line['text'] for line in transcript_list)
-                
-                # Check if transcript is too short or contains placeholder text
-                if len(transcript_text) < 50 or "caption is updating" in transcript_text.lower():
-                    logger.info(f"Retrieved {lang} transcript is too short or contains placeholder text, treating as no transcript")
-                    attempt_results.append(f"{lang}: Too short or placeholder")
-                    transcript_text = None
-                    continue
-                
-                # Valid transcript found
-                transcript_language = lang
-                logger.info(f"Retrieved valid {lang} transcript from YouTube API")
-                
-                # Add header info for resource
-                header = f"# Transcript for YouTube video: {video_id}\n# Language: {transcript_language}\n\n"
-                return header + transcript_text
-                
-            except Exception as lang_e:
-                error = str(lang_e)
-                logger.info(f"No {lang} transcript available: {error}")
-                attempt_results.append(f"{lang}: {error}")
-                continue
-        
-        # If no specific language found, try with auto-generated
-        try:
-            logger.info("Attempting to fetch auto-generated transcript...")
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-            transcript_text = "\n".join(line['text'] for line in transcript_list)
-            
-            # Check if transcript is too short or contains placeholder text
-            if transcript_text and (len(transcript_text) < 50 or "caption is updating" in transcript_text.lower()):
-                logger.info("Retrieved auto transcript is too short or contains placeholder text, treating as no transcript")
-                attempt_results.append("Auto-generated: Too short or placeholder")
-                transcript_text = None
-            elif transcript_text:
-                # Try to detect language
-                try:
-                    transcript_language = detect(transcript_text[:100])
-                    logger.info(f"Detected language: {transcript_language}")
-                except Exception as e:
-                    logger.warning(f"Language detection failed: {str(e)}")
-                    transcript_language = "unknown"
-                
-                logger.info(f"Retrieved transcript from YouTube API (auto language: {transcript_language})")
-                
-                # Add header info for resource
-                header = f"# Transcript for YouTube video: {video_id}\n# Language: {transcript_language}\n\n"
-                return header + transcript_text
-                
-        except Exception as e:
-            error_msg = str(e)
-            logger.warning(f"Failed to get auto-generated transcript: {error_msg}")
-            attempt_results.append(f"Auto-generated: {error_msg}")
-        
-        # If all attempts failed, return a helpful message with details of attempts
-        if not transcript_text:
-            attempts_summary = "\n".join([f"- {attempt}" for attempt in attempt_results])
-            logger.warning(f"All transcript attempts failed for video {video_id}")
-            
-            return f"""# No transcript available
+    if error_msg:
+        return f"""# No transcript available
 
 Could not retrieve transcript for YouTube video: {video_id}
 
-Attempted the following:
-{attempts_summary}
+{error_msg}
 
 You can try using the extract_transcript tool to generate a transcript by transcribing the audio.
 """
-            
-    except Exception as e:
-        logger.error(f"Unexpected error in get_transcript_resource: {str(e)}")
-        return f"""# Error retrieving transcript
-
-An error occurred while retrieving the transcript for YouTube video: {video_id}
-
-Error: {str(e)}
-
-You can try using the extract_transcript tool instead.
-"""
+    
+    # Add header info for resource
+    header = f"# Transcript for YouTube video: {video_id}\n# Language: {transcript_language}\n\n"
+    return header + transcript_text
 
 @mcp.tool()
 async def get_transcript(video_id: str, language: Optional[str] = None, ctx: Context = None) -> str:
@@ -177,133 +100,26 @@ async def get_transcript(video_id: str, language: Optional[str] = None, ctx: Con
     Retrieve the transcript from a YouTube video
     
     Args:
-        video_id: The YouTube video ID (e.g., dQw4w9WgXcQ from https://www.youtube.com/watch?v=dQw4w9WgXcQ)
-        language: Preferred language for the transcript (en or vi), defaults to English then Vietnamese
-    
-    Returns:
-        The video transcript text
+        video_id: The YouTube video ID
+        language: Preferred language for the transcript (en or vi)
+        ctx: Context for progress reporting
     """
     if ctx:
         ctx.info(f"Getting transcript for video ID: {video_id}")
     
-    transcript_text = None
-    transcript_language = None
-    transcript_source = "youtube_api"
-    error_msg = None
+    # Remove await since get_youtube_transcript is now sync
+    transcript_text, transcript_language, transcript_source, error_msg = get_youtube_transcript(
+        video_id, language, ctx
+    )
     
-    try:
-        # Get language preference order
-        lang_preference = get_language_preference(language)
-        
-        if ctx:
-            ctx.info(f"Language preference order: {', '.join(lang_preference)}")
-        logger.info(f"Trying to get transcript for video {video_id} with language preference: {lang_preference}")
-        
-        # Track attempts in case all fail
-        attempt_results = []
-        
-        # Try to get transcript in preferred languages
-        for lang in lang_preference:
-            try:
-                logger.info(f"{video_id}: Attempting to get transcript in {lang}...")
-                if ctx:
-                    ctx.info(f"Attempting to fetch transcript in {lang}...")
-                
-                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
-                logger.info(f"count of transcript_list: {len(transcript_list)}")
-                logger.info(f"Transcript list: {transcript_list}")
-                transcript_text = "\n".join(line.text for line in transcript_list)
-                
-                # Check if transcript is too short or contains placeholder text
-                if len(transcript_text) < 50 or "caption is updating" in transcript_text.lower():
-                    msg = f"Retrieved {lang} transcript is too short or contains placeholder text, treating as no transcript"
-                    logger.info(msg)
-                    if ctx:
-                        ctx.info(msg)
-                    
-                    attempt_results.append(f"{lang}: Too short or placeholder")
-                    transcript_text = None
-                    continue
-                
-                logger.info(f"2222222222222222222222222222")
-                # Valid transcript found
-                transcript_language = lang
-                msg = f"Retrieved valid {lang} transcript from YouTube API"
-                logger.info(msg) 
-                if ctx:
-                    ctx.info(msg)
-                break
-                
-            except Exception as lang_e:
-                error = str(lang_e)
-                logger.info(f"No {lang} transcript available: {error}")
-                if ctx:
-                    ctx.info(f"No {lang} transcript available: {error}")
-                attempt_results.append(f"{lang}: {error}")
-                continue
-        
-        # If no specific language found, try with auto-generated
-        if not transcript_text:
-            try:
-                if ctx:
-                    ctx.info("Attempting to fetch auto-generated transcript...")
-                
-                transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-                transcript_text = "\n".join(line['text'] for line in transcript_list)
-                
-                # Check if transcript is too short or contains placeholder text
-                if transcript_text and (len(transcript_text) < 50 or "caption is updating" in transcript_text.lower()):
-                    msg = "Retrieved auto transcript is too short or contains placeholder text, treating as no transcript"
-                    logger.info(msg)
-                    if ctx:
-                        ctx.info(msg)
-                    
-                    attempt_results.append("Auto-generated: Too short or placeholder")
-                    transcript_text = None
-                
-                # Try to detect language if we have a valid transcript
-                elif transcript_text:
-                    try:
-                        transcript_language = detect(transcript_text[:100])
-                        logger.info(f"Detected language: {transcript_language}")
-                    except Exception as e:
-                        logger.warning(f"Language detection failed: {str(e)}")
-                        transcript_language = "unknown"
-                    
-                    msg = f"Retrieved transcript from YouTube API (auto language: {transcript_language})"
-                    logger.info(msg)
-                    if ctx:
-                        ctx.info(msg)
-                
-            except Exception as e:
-                error_msg = str(e)
-                logger.warning(f"Failed to get auto-generated transcript: {error_msg}")
-                if ctx:
-                    ctx.warning(f"Failed to get auto-generated transcript: {error_msg}")
-                attempt_results.append(f"Auto-generated: {error_msg}")
-        
-        # If all attempts failed, return a helpful message with details of attempts
-        if not transcript_text:
-            attempts_summary = "\n".join([f"- {attempt}" for attempt in attempt_results])
-            logger.warning(f"All transcript attempts failed for video {video_id}")
-            
-            error_details = f"No transcript available for this video. Attempted the following:\n{attempts_summary}\n\nPlease try using the extract_transcript tool instead."
-            if ctx:
-                ctx.warning(error_details)
-            return error_details
-        
-        # Return the successfully retrieved transcript
-        transcript_info = f"Video ID: {video_id}\nLanguage: {transcript_language}\nSource: {transcript_source}\n\n"
-        if ctx:
-            ctx.info(f"Successfully retrieved transcript ({len(transcript_text)} characters)")
-        return transcript_info + transcript_text
-        
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Unexpected error in get_transcript: {error_msg}")
-        if ctx:
-            ctx.error(f"Unexpected error: {error_msg}")
-        return f"An unexpected error occurred while retrieving the transcript: {error_msg}. Try using extract_transcript tool instead."
+    if error_msg:
+        return f"{error_msg}\n\nPlease try using the extract_transcript tool instead."
+    
+    # Return the successfully retrieved transcript
+    transcript_info = f"Video ID: {video_id}\nLanguage: {transcript_language}\nSource: {transcript_source}\n\n"
+    if ctx:
+        ctx.info(f"Successfully retrieved transcript ({len(transcript_text)} characters)")
+    return transcript_info + transcript_text
 
 @mcp.tool()
 async def extract_transcript(video_id: str, language: Optional[str] = None, ctx: Context = None) -> str:

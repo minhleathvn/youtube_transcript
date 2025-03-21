@@ -5,7 +5,7 @@ import os
 import tempfile
 import logging
 import time
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Union, Any
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from pytube import YouTube
@@ -23,6 +23,12 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 
 # Initialize whisper model (load on startup)
 MODEL = None  # We'll load it lazily on first use
+
+# Import Context type, but make it optional since Flask doesn't use it
+try:
+    from mcp.server.fastmcp import Context
+except ImportError:
+    Context = None
 
 def get_whisper_model():
     """Get or initialize the Whisper model"""
@@ -147,3 +153,108 @@ def extract_video_id(video_url_or_id: str) -> str:
         elif "youtu.be/" in video_url_or_id:
             video_id = video_url_or_id.split("youtu.be/")[1].split("?")[0]
     return video_id
+
+def get_youtube_transcript(
+    video_id: str, 
+    language: Optional[str] = None, 
+    ctx: Optional[Any] = None
+) -> Tuple[Optional[str], Optional[str], str, Optional[str]]:
+    """
+    Common helper function to get YouTube transcript
+    
+    Args:
+        video_id: YouTube video ID
+        language: Preferred language
+        ctx: Optional MCP context for logging
+    
+    Returns:
+        Tuple of (transcript_text, transcript_language, transcript_source, error_message)
+    """
+    transcript_text = None
+    transcript_language = None
+    transcript_source = "youtube_api"
+    error_msg = None
+    
+    try:
+        # Get language preference order
+        lang_preference = get_language_preference(language)
+        if ctx:
+            ctx.info(f"Language preference order: {', '.join(lang_preference)}")
+        
+        # Track attempts in case all fail
+        attempt_results = []
+        
+        # Try to get transcript in preferred languages
+        for lang in lang_preference:
+            try:
+                if ctx:
+                    ctx.info(f"Attempting to fetch transcript in {lang}...")
+                
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
+                transcript_text = "\n".join(line['text'] for line in transcript_list)
+                
+                # Check if transcript is too short or contains placeholder text
+                if len(transcript_text) < 50 or "caption is updating" in transcript_text.lower():
+                    msg = f"Retrieved {lang} transcript is too short or contains placeholder text"
+                    if ctx:
+                        ctx.info(msg)
+                    attempt_results.append(f"{lang}: Too short or placeholder")
+                    transcript_text = None
+                    continue
+                
+                # Valid transcript found
+                transcript_language = lang
+                if ctx:
+                    ctx.info(f"Retrieved valid {lang} transcript from YouTube API")
+                return transcript_text, transcript_language, transcript_source, None
+                
+            except Exception as lang_e:
+                error = str(lang_e)
+                if ctx:
+                    ctx.info(f"No {lang} transcript available: {error}")
+                attempt_results.append(f"{lang}: {error}")
+                continue
+        
+        # If no specific language found, try with auto-generated
+        try:
+            if ctx:
+                ctx.info("Attempting to fetch auto-generated transcript...")
+            
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            transcript_text = "\n".join(line['text'] for line in transcript_list)
+            
+            # Check if transcript is too short or contains placeholder text
+            if transcript_text and (len(transcript_text) < 50 or "caption is updating" in transcript_text.lower()):
+                msg = "Retrieved auto transcript is too short or contains placeholder text"
+                if ctx:
+                    ctx.info(msg)
+                attempt_results.append("Auto-generated: Too short or placeholder")
+                transcript_text = None
+            elif transcript_text:
+                # Try to detect language
+                try:
+                    transcript_language = detect(transcript_text[:100])
+                except Exception as e:
+                    transcript_language = "unknown"
+                
+                if ctx:
+                    ctx.info(f"Retrieved transcript from YouTube API (auto language: {transcript_language})")
+                return transcript_text, transcript_language, transcript_source, None
+                
+        except Exception as e:
+            error_msg = str(e)
+            if ctx:
+                ctx.warning(f"Failed to get auto-generated transcript: {error_msg}")
+            attempt_results.append(f"Auto-generated: {error_msg}")
+        
+        # If all attempts failed, return error details
+        if not transcript_text:
+            attempts_summary = "\n".join([f"- {attempt}" for attempt in attempt_results])
+            error_msg = f"No transcript available. Attempted:\n{attempts_summary}"
+            return None, None, transcript_source, error_msg
+            
+    except Exception as e:
+        error_msg = f"Unexpected error: {str(e)}"
+        return None, None, transcript_source, error_msg
+    
+    return transcript_text, transcript_language, transcript_source, error_msg
